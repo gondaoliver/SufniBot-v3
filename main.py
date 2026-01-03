@@ -1,8 +1,6 @@
-import RPi.GPIO as GPIO
+from gpiozero import Motor
 import time 
 import pygame
-
-GPIO.setmode(GPIO.BCM)
 
 """
 The pins should be like this:
@@ -35,51 +33,43 @@ LRB = 22
 
 # Setting up outputs
 
-GPIO.setup(RFF, GPIO.OUT)
-GPIO.setup(RFB, GPIO.OUT)
-GPIO.setup(LFF, GPIO.OUT)
-GPIO.setup(LFB, GPIO.OUT) 
-GPIO.setup(RRF, GPIO.OUT)
-GPIO.setup(RRB, GPIO.OUT)
-GPIO.setup(LRF, GPIO.OUT)
-GPIO.setup(LRB, GPIO.OUT)
+RF = Motor(14,15)
+RR = Motor(18,23)
+LF = Motor(24,17)
+LR = Motor(27,22)
 
 # Making functions for commands
 # For example: Forward: RFF,LFF,RRF,LRF - HIGH
 
 def fw():
-    GPIO.output(RFF, GPIO.HIGH)
-    GPIO.output(LFF, GPIO.HIGH)
-    GPIO.output(RRF, GPIO.HIGH)
-    GPIO.output(LRF, GPIO.HIGH)
+    RF.forward()
+    RR.forward()
+    LF.forward()
+    LR.forward()
 
 def bw():
-    GPIO.output(RFB, GPIO.HIGH)
-    GPIO.output(LFB, GPIO.HIGH)
-    GPIO.output(RRB, GPIO.HIGH)
-    GPIO.output(LRB, GPIO.HIGH)
-
+    RF.backward()
+    RR.backward()
+    LF.backward()
+    LR.backward()
+    
 def right():
-    GPIO.output(LFF, GPIO.HIGH)
-    GPIO.output(LRF, GPIO.HIGH)
-    GPIO.output(RFB, GPIO.HIGH)
-    GPIO.output(RRB, GPIO.HIGH)
+    RF.backward()
+    RR.backward()
+    LF.forward()
+    LR.forward()
 
 def left():
-    GPIO.output(LFB, GPIO.HIGH)
-    GPIO.output(LRB, GPIO.HIGH)
-    GPIO.output(RFF, GPIO.HIGH)
-    GPIO.output(RRF, GPIO.HIGH)
+    RF.forward()
+    RR.forward()
+    LF.backward()
+    LR.backward()
 
 def stop():
-    GPIO.output(RFF, GPIO.LOW)
-    GPIO.output(LFF, GPIO.LOW)
-    GPIO.output(RRF, GPIO.LOW)
-    GPIO.output(LRF, GPIO.LOW)
-    GPIO.output(RFB, GPIO.LOW)
-    GPIO.output(LFB, GPIO.LOW)
-    GPIO.output(RRB, GPIO.LOW)
-    GPIO.output(LRB, GPIO.LOW)
+    RF.stop()
+    RR.stop()
+    LF.stop()
+    LR.stop()
 
 # Defining the Pygame window, and adding the functions to keypresses
 # For example: W - fw() (forward)

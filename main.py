@@ -33,10 +33,10 @@ LRB = 22
 
 # Setting up outputs
 
-RF = Motor(14,15)
-RR = Motor(18,23)
-LF = Motor(24,17)
-LR = Motor(27,22)
+RF = Motor(RFF,RFB)
+RR = Motor(RRF,RRB)
+LF = Motor(LFF,LFB)
+LR = Motor(LRF,LRB)
 
 # Making functions for commands
 # For example: Forward: RFF,LFF,RRF,LRF - HIGH

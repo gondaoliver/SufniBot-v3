@@ -11,7 +11,7 @@ For example: GPIO 14 - Right front forward
 
 Right front forward: 14
 Right front backward: 15
-Left front fw: 4
+Left front fw: 24
 Left front bw: 17
 
 Right rear fw: 18
@@ -26,7 +26,7 @@ Left rear bw: 22
 
 RFF = 14
 RFB = 15
-LFF = 4
+LFF = 24
 LFB = 17
 RRF = 18
 RRB = 23

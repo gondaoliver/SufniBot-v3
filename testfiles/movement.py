@@ -1,5 +1,6 @@
 from gpiozero import Motor
-import time
+import time 
+import pygame
 
 """
 The pins should be like this:
@@ -69,3 +70,34 @@ def stop():
     RR.stop()
     LF.stop()
     LR.stop()
+
+# Defining the Pygame window, and adding the functions to keypresses
+# For example: W - fw() (forward)
+
+screen = pygame.display.set_mode((240, 240))
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_w:
+                fw()
+                print("Forward")
+            if event.key == pygame.K_s:
+                bw()
+                print("Backward")
+            if event.key == pygame.K_a:
+                left()
+                print("Left")
+            if event.key == pygame.K_d:
+                right()
+                print("Right")
+            if event.key == pygame.K_q:
+                break
+        if event.type == pygame.KEYUP:
+            stop()
+
+# When the script is stopped, stop everything down
+try:
+    while is_running:
+        sleep(0.001)
+finally:
+    stop()

@@ -1,6 +1,5 @@
 #TODO
-# Add real servo controls
-
+# Add QR code recognition
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -10,7 +9,7 @@ from PyQt5.QtCore import QTimer, Qt, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import PyQt5.QtCore as QtCore
 import cv2
-#import movement
+from movement import fw, bw, right, left, stop
 from servo import moveAngle
 
 class CameraWidget(QWidget):
@@ -82,6 +81,7 @@ class CameraWidget(QWidget):
         if self.cap is not None:
             return  # already running
         self.cap = cv2.VideoCapture(self.camera_index)
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
         if self.cap.isOpened():
             self.timer.start(30)  # ~33 fps
             self.status_label.setText("🟢  Active")
@@ -187,7 +187,7 @@ class MainWindow(QMainWindow):
                 self.camera_widgets.append(cam)
                 self.stack.addWidget(cam)
             elif i == 2:
-                cam = CameraWidget(camera_index=4, servos=self.servos)
+                cam = CameraWidget(camera_index=3, servos=self.servos)
                 self.camera_widgets.append(cam)
                 self.stack.addWidget(cam)
 
@@ -244,25 +244,59 @@ class MainWindow(QMainWindow):
         if event.type() == QtCore.QEvent.KeyPress:
             if event.key() == Qt.Key_W:
                 print("Forward")
-                #fw()
+                fw()
             elif event.key() == Qt.Key_S:
                 print("Backward")
-                #bw()
+                bw()
             elif event.key() == Qt.Key_A:
                 print("Left")
-                #left()
+                left()
             elif event.key() == Qt.Key_D:
                 print("Right")
-                #right()
+                right()
             elif event.key() == Qt.Key_I:
-                self.servos["base"] = moveAngle(self.servos["base"], "positive")
+                self.servos["base"] = moveAngle(self.servos["base"], "positive", "base")
                 self.update_servo_labels()
                 print(f"Base: {self.servos["base"]}")
             elif event.key() == Qt.Key_K:
-                self.servos["base"] = moveAngle(self.servos["base"], "negative")
+                self.servos["base"] = moveAngle(self.servos["base"], "negative", "base")
                 self.update_servo_labels()
                 print(f"Base: {self.servos["base"]}")
+            elif event.key() == Qt.Key_O:
+                self.servos["neck"] = moveAngle(self.servos["neck"], "positive", "neck")
+                self.update_servo_labels()
+                print(f"Neck: {self.servos["neck"]}")
+            elif event.key() == Qt.Key_L:
+                self.servos["neck"] = moveAngle(self.servos["neck"], "negative", "neck")
+                self.update_servo_labels()
+                print(f"Neck: {self.servos["neck"]}")
+            elif event.key() == Qt.Key_N:
+                self.servos["gripper"] = moveAngle(self.servos["gripper"], "positive", "gripper")
+                self.update_servo_labels()
+                print(f"Gripper: {self.servos["gripper"]}")
+            elif event.key() == Qt.Key_M:
+                self.servos["gripper"] = moveAngle(self.servos["gripper"], "negative", "gripper")
+                self.update_servo_labels()
+                print(f"Gripper: {self.servos["gripper"]}")
+            elif event.key() == Qt.Key_U:
+                self.servos["tail"] = moveAngle(self.servos["tail"], "positive", "tail")
+                self.update_servo_labels()
+                print(f"Tail: {self.servos["tail"]}")
+            elif event.key() == Qt.Key_J:
+                self.servos["tail"] = moveAngle(self.servos["tail"], "negative", "tail")
+                self.update_servo_labels()
+                print(f"Tail: {self.servos["tail"]}")
+        elif event.type() == QtCore.QEvent.KeyRelease:
+            if event.key() == Qt.Key_W:
+                stop()
+            if event.key() == Qt.Key_S:
+                stop()
+            if event.key() == Qt.Key_A:
+                stop()
+            if event.key() == Qt.Key_D:
+                stop()
         return super().eventFilter(source, event)
+
 
 def main():
     app = QApplication(sys.argv)

@@ -1,5 +1,6 @@
 #TODO
-# Add QR code recognition
+# Set servos to x angle on code open
+
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -11,6 +12,7 @@ import PyQt5.QtCore as QtCore
 import cv2
 from movement import fw, bw, right, left, stop
 from servo import moveAngle
+import pyzbar.pyzbar as pyzbar
 
 class CameraWidget(QWidget):
     """A widget that shows a live camera feed."""
@@ -19,9 +21,11 @@ class CameraWidget(QWidget):
         super().__init__(parent)
         self.camera_index = camera_index
         self.cap = None
+        self._is_running = False  # FIX: guard flag to prevent race conditions
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
         self._build_ui()
+        self.scanned_codes = set()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -78,11 +82,17 @@ class CameraWidget(QWidget):
 
     # ── Camera ────────────────────────────────────────────────────
     def start_camera(self):
-        if self.cap is not None:
-            return  # already running
+        if self._is_running:
+            return  # FIX: use flag instead of checking cap, avoids race condition
+
         self.cap = cv2.VideoCapture(self.camera_index)
+
+        # FIX: set codec and buffer size BEFORE checking isOpened
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # FIX: keep only 1 frame in buffer
+
         if self.cap.isOpened():
+            self._is_running = True
             self.timer.start(30)  # ~33 fps
             self.status_label.setText("🟢  Active")
             self.status_label.setStyleSheet("color: #4ade80; margin-top: 6px;")
@@ -96,6 +106,7 @@ class CameraWidget(QWidget):
             self.status_label.setStyleSheet("color: #f87171; margin-top: 6px;")
 
     def stop_camera(self):
+        self._is_running = False  # FIX: set flag first so update_frame exits early
         self.timer.stop()
         if self.cap is not None:
             self.cap.release()
@@ -110,21 +121,37 @@ class CameraWidget(QWidget):
 
     @pyqtSlot()
     def update_frame(self):
-        if self.cap is None or not self.cap.isOpened():
+        # FIX: check flag first — prevents any frame processing after stop_camera()
+        if not self._is_running or self.cap is None or not self.cap.isOpened():
             return
-        ret, frame = self.cap.read()
-        if not ret:
+
+        # FIX: grab() then retrieve() instead of read() — discards stale buffered frames
+        self.cap.grab()
+        ret, frame = self.cap.retrieve()
+        if not ret or frame is None:
             return
+
+        # QR / barcode decoding (must happen before BGR->RGB conversion)
+        decoded_objects = pyzbar.decode(frame)
+        for obj in decoded_objects:
+            data = obj.data.decode("utf-8")  # Decode bytes → str properly
+
+            if data not in self.scanned_codes:
+                self.scanned_codes.add(data)
+                # Append to file so previous scans aren't overwritten
+                with open("codes.txt", "a") as file:
+                    file.write(data + "\n")
+                print("Data:", data)
+            cv2.putText(frame, data, (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
+                        2, (255, 0, 0), 3)
+
+        # Convert to Qt pixmap and display
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = frame.shape
-        bytes_per_line = ch * w
-        qt_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(qt_image)
+        qt_image = QImage(frame.data, w, h, ch * w, QImage.Format_RGB888)
         self.video_label.setPixmap(
-            pixmap.scaled(
-                self.video_label.size(),
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation,
+            QPixmap.fromImage(qt_image).scaled(
+                self.video_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
             )
         )
 
@@ -181,7 +208,7 @@ class MainWindow(QMainWindow):
             if i == 0:
                 cam = CameraWidget(camera_index=0, servos=self.servos)
                 self.camera_widgets.append(cam)
-                self.stack.addWidget(cam)   
+                self.stack.addWidget(cam)
             elif i == 1:
                 cam = CameraWidget(camera_index=2, servos=self.servos)
                 self.camera_widgets.append(cam)
@@ -257,35 +284,35 @@ class MainWindow(QMainWindow):
             elif event.key() == Qt.Key_I:
                 self.servos["base"] = moveAngle(self.servos["base"], "positive", "base")
                 self.update_servo_labels()
-                print(f"Base: {self.servos["base"]}")
+                print(f"Base: {self.servos['base']}")
             elif event.key() == Qt.Key_K:
                 self.servos["base"] = moveAngle(self.servos["base"], "negative", "base")
                 self.update_servo_labels()
-                print(f"Base: {self.servos["base"]}")
+                print(f"Base: {self.servos['base']}")
             elif event.key() == Qt.Key_O:
                 self.servos["neck"] = moveAngle(self.servos["neck"], "positive", "neck")
                 self.update_servo_labels()
-                print(f"Neck: {self.servos["neck"]}")
+                print(f"Neck: {self.servos['neck']}")
             elif event.key() == Qt.Key_L:
                 self.servos["neck"] = moveAngle(self.servos["neck"], "negative", "neck")
                 self.update_servo_labels()
-                print(f"Neck: {self.servos["neck"]}")
+                print(f"Neck: {self.servos['neck']}")
             elif event.key() == Qt.Key_N:
                 self.servos["gripper"] = moveAngle(self.servos["gripper"], "positive", "gripper")
                 self.update_servo_labels()
-                print(f"Gripper: {self.servos["gripper"]}")
+                print(f"Gripper: {self.servos['gripper']}")
             elif event.key() == Qt.Key_M:
                 self.servos["gripper"] = moveAngle(self.servos["gripper"], "negative", "gripper")
                 self.update_servo_labels()
-                print(f"Gripper: {self.servos["gripper"]}")
+                print(f"Gripper: {self.servos['gripper']}")
             elif event.key() == Qt.Key_U:
                 self.servos["tail"] = moveAngle(self.servos["tail"], "positive", "tail")
                 self.update_servo_labels()
-                print(f"Tail: {self.servos["tail"]}")
+                print(f"Tail: {self.servos['tail']}")
             elif event.key() == Qt.Key_J:
                 self.servos["tail"] = moveAngle(self.servos["tail"], "negative", "tail")
                 self.update_servo_labels()
-                print(f"Tail: {self.servos["tail"]}")
+                print(f"Tail: {self.servos['tail']}")
         elif event.type() == QtCore.QEvent.KeyRelease:
             if event.key() == Qt.Key_W:
                 stop()
@@ -304,6 +331,7 @@ def main():
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     main()

@@ -19,3 +19,7 @@ def moveAngle(current_angle, direction, servo_name="base"):
         new_angle = max(0, min(180, new_angle))
         kit.servo[SERVO_CHANNELS[servo_name]].angle = new_angle
     return new_angle
+
+def setAngle(servo_name, angle):
+    kit.servo[SERVO_CHANNELS[servo_name]].angle = angle
+    return angle

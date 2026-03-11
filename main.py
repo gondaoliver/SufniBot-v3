@@ -1,51 +1,50 @@
 #TODO
-# Set servos to x angle on code open
+# Display the wheels way
 
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
-    QHBoxLayout, QPushButton, QLabel, QStackedWidget, QFrame, QSlider
+    QHBoxLayout, QPushButton, QLabel, QStackedWidget, QFrame
 )
 from PyQt5.QtCore import QTimer, Qt, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import PyQt5.QtCore as QtCore
 import cv2
 from movement import fw, bw, right, left, stop
-from servo import moveAngle
+from servo import moveAngle, setAngle
 import pyzbar.pyzbar as pyzbar
+
 
 class CameraWidget(QWidget):
     """A widget that shows a live camera feed."""
+
     def __init__(self, camera_index: int, servos, parent=None):
         self.servos = servos
         super().__init__(parent)
         self.camera_index = camera_index
         self.cap = None
-        self._is_running = False  # FIX: guard flag to prevent race conditions
+        self._is_running = False
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
-        self._build_ui()
         self.scanned_codes = set()
+        self._build_ui()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         hbox = QHBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        # ── Title bar ────────────────────────────────────────────────────
+        # ── Title bar ─────────────────────────────────────────────────────────
         title = QLabel(f"📷  Camera {self.camera_index + 1}  (index {self.camera_index})")
         title.setAlignment(Qt.AlignCenter)
         title.setFont(QFont("Segoe UI", 14, QFont.Bold))
         title.setStyleSheet("color: #e0e0e0; margin-bottom: 8px;")
         layout.addWidget(title)
 
-        # ── Camera preview ────────────────────────────────────────────────────
+        # ── Camera preview ─────────────────────────────────────────────────────
         self.video_label = QLabel()
         self.video_label.setAlignment(Qt.AlignCenter)
         self.video_label.setMinimumSize(640, 480)
-        self.video_label.setStyleSheet(
-            "background-color: #1a1a2e; border: 2px solid #4a4a8a; border-radius: 8px;"
-        )
         self.video_label.setText("Camera inactive")
         self.video_label.setFont(QFont("Segoe UI", 12))
         self.video_label.setStyleSheet(
@@ -54,42 +53,42 @@ class CameraWidget(QWidget):
         )
         layout.addWidget(self.video_label)
 
+        # ── Status label ───────────────────────────────────────────────────────
         self.status_label = QLabel("⏸  Stopped")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("color: #888; margin-top: 6px;")
         layout.addWidget(self.status_label)
 
-        # ── Movement guide ────────────────────────────────────────────────────
-        self.control_label = QLabel("Forward (W)\nBackwards (S)\nLeft(A)\nRight(D)")
+        # ── Movement guide ─────────────────────────────────────────────────────
+        self.control_label = QLabel("Forward (W)\nBackwards (S)\nLeft (A)\nRight (D)")
         self.control_label.setAlignment(Qt.AlignCenter)
         self.control_label.setFont(QFont("Segoe UI", 12))
-        self.control_label.setStyleSheet(
-            "margin-top: 30px;"
-            "margin-bottom: 30px;"
-        )
+        self.control_label.setStyleSheet("margin-top: 30px; margin-bottom: 30px;")
         hbox.addWidget(self.control_label)
 
-        # ── Servo infos ────────────────────────────────────────────────────
-        self.servo_label = QLabel(f"Base: {self.servos['base']}\nNeck: {self.servos['neck']}\nGripper: {self.servos['gripper']}\nTail: {self.servos['tail']}")
+        # ── Servo info ─────────────────────────────────────────────────────────
+        self.servo_label = QLabel(
+            f"Base: {self.servos['base']}\n"
+            f"Neck: {self.servos['neck']}\n"
+            f"Gripper: {self.servos['gripper']}\n"
+            f"Tail: {self.servos['tail']}"
+        )
         self.servo_label.setAlignment(Qt.AlignCenter)
         self.servo_label.setFont(QFont("Segoe UI", 12))
-        self.servo_label.setStyleSheet(
-            "margin-top: 30px;"
-            "margin-bottom: 30px;"
-        )
+        self.servo_label.setStyleSheet("margin-top: 30px; margin-bottom: 30px;")
         hbox.addWidget(self.servo_label)
+
         layout.addLayout(hbox)
 
-    # ── Camera ────────────────────────────────────────────────────
+    # ── Camera lifecycle ───────────────────────────────────────────────────────
+
     def start_camera(self):
         if self._is_running:
-            return  # FIX: use flag instead of checking cap, avoids race condition
+            return
 
         self.cap = cv2.VideoCapture(self.camera_index)
-
-        # FIX: set codec and buffer size BEFORE checking isOpened
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # FIX: keep only 1 frame in buffer
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         if self.cap.isOpened():
             self._is_running = True
@@ -99,14 +98,12 @@ class CameraWidget(QWidget):
         else:
             self.cap.release()
             self.cap = None
-            self.video_label.setText(
-                f"⚠  Camera {self.camera_index} not available"
-            )
+            self.video_label.setText(f"⚠  Camera {self.camera_index} not available")
             self.status_label.setText("🔴  Unavailable")
             self.status_label.setStyleSheet("color: #f87171; margin-top: 6px;")
 
     def stop_camera(self):
-        self._is_running = False  # FIX: set flag first so update_frame exits early
+        self._is_running = False
         self.timer.stop()
         if self.cap is not None:
             self.cap.release()
@@ -121,31 +118,26 @@ class CameraWidget(QWidget):
 
     @pyqtSlot()
     def update_frame(self):
-        # FIX: check flag first — prevents any frame processing after stop_camera()
         if not self._is_running or self.cap is None or not self.cap.isOpened():
             return
 
-        # FIX: grab() then retrieve() instead of read() — discards stale buffered frames
         self.cap.grab()
         ret, frame = self.cap.retrieve()
         if not ret or frame is None:
             return
 
-        # QR / barcode decoding (must happen before BGR->RGB conversion)
+        # QR / barcode decoding
         decoded_objects = pyzbar.decode(frame)
         for obj in decoded_objects:
-            data = obj.data.decode("utf-8")  # Decode bytes → str properly
-
+            data = obj.data.decode("utf-8")
             if data not in self.scanned_codes:
                 self.scanned_codes.add(data)
-                # Append to file so previous scans aren't overwritten
-                with open("codes.txt", "a") as file:
-                    file.write(data + "\n")
-                print("Data:", data)
-            cv2.putText(frame, data, (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
-                        2, (255, 0, 0), 3)
+                with open("codes.txt", "a") as f:
+                    f.write(data + "\n")
+                print("Scanned:", data)
+            cv2.putText(frame, data, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 3)
 
-        # Convert to Qt pixmap and display
+        # Display frame
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = frame.shape
         qt_image = QImage(frame.data, w, h, ch * w, QImage.Format_RGB888)
@@ -161,6 +153,14 @@ class CameraWidget(QWidget):
 
 
 class MainWindow(QMainWindow):
+    # Camera index → whether W/S should be inverted (rear-facing camera)
+    CAMERA_INVERTED = {
+        0: False,  # Camera 1 — front facing
+        1: True,   # Camera 2 — rear facing (inverts fw/bw)
+        2: False,  # Camera 3 — front facing
+    }
+    CAMERA_INDICES = [0, 2, 3]  # Hardware camera indices for tabs 0, 1, 2
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SufniBot v3 | Gondaaa")
@@ -169,6 +169,7 @@ class MainWindow(QMainWindow):
         self.installEventFilter(self)
 
         self.servos = {"base": 90, "neck": 90, "gripper": 90, "tail": 90}
+        self.current_tab = 0  # Tracks which tab (0, 1, 2) is active
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -176,7 +177,7 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ── Tab bar ──────────────────────────────────────────────────────────
+        # ── Tab bar ────────────────────────────────────────────────────────────
         tab_bar = QFrame()
         tab_bar.setFixedHeight(54)
         tab_bar.setStyleSheet("background-color: #16213e; border-bottom: 2px solid #4a4a8a;")
@@ -198,30 +199,21 @@ class MainWindow(QMainWindow):
         tab_layout.addStretch()
         main_layout.addWidget(tab_bar)
 
-        # ── Stacked pages ────────────────────────────────────────────────────
+        # ── Stacked pages ──────────────────────────────────────────────────────
         self.stack = QStackedWidget()
         self.stack.setStyleSheet("background-color: #0f0f1a;")
         main_layout.addWidget(self.stack)
 
         self.camera_widgets = []
-        for i in range(3):
-            if i == 0:
-                cam = CameraWidget(camera_index=0, servos=self.servos)
-                self.camera_widgets.append(cam)
-                self.stack.addWidget(cam)
-            elif i == 1:
-                cam = CameraWidget(camera_index=2, servos=self.servos)
-                self.camera_widgets.append(cam)
-                self.stack.addWidget(cam)
-            elif i == 2:
-                cam = CameraWidget(camera_index=3, servos=self.servos)
-                self.camera_widgets.append(cam)
-                self.stack.addWidget(cam)
+        for i, cam_idx in enumerate(self.CAMERA_INDICES):
+            cam = CameraWidget(camera_index=cam_idx, servos=self.servos)
+            self.camera_widgets.append(cam)
+            self.stack.addWidget(cam)
 
         # Activate first page
         self.switch_page(0)
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    # ── Helpers ────────────────────────────────────────────────────────────────
 
     def _tab_style(self):
         return """
@@ -243,18 +235,22 @@ class MainWindow(QMainWindow):
             }
         """
 
-    # ── Label updater ────────────────────────────────────────────────────
     def update_servo_labels(self):
-        text = f"Base: {self.servos['base']}\nNeck: {self.servos['neck']}\nGripper: {self.servos['gripper']}\nTail: {self.servos['tail']}"
+        text = (
+            f"Base: {self.servos['base']}\n"
+            f"Neck: {self.servos['neck']}\n"
+            f"Gripper: {self.servos['gripper']}\n"
+            f"Tail: {self.servos['tail']}"
+        )
         for cam in self.camera_widgets:
             cam.servo_label.setText(text)
 
-    # ── Stop cam on page switch ────────────────────────────────────────────────────
     def switch_page(self, index: int):
         current = self.stack.currentIndex()
         if current != index:
             self.camera_widgets[current].stop_camera()
 
+        self.current_tab = index  # FIX: always update current tab on switch
         self.stack.setCurrentIndex(index)
         self.camera_widgets[index].start_camera()
 
@@ -266,62 +262,102 @@ class MainWindow(QMainWindow):
             cam.stop_camera()
         super().closeEvent(event)
 
-    # ── Keybinds ────────────────────────────────────────────────────
+    # ── Key bindings ───────────────────────────────────────────────────────────
+
     def eventFilter(self, source, event):
         if event.type() == QtCore.QEvent.KeyPress:
+            inverted = self.CAMERA_INVERTED.get(self.current_tab, False)
+
+            # ── Movement ──────────────────────────────────────────────────────
             if event.key() == Qt.Key_W:
-                print("Forward")
-                fw()
+                print("Forward" if not inverted else "Forward (inverted→bw)")
+                bw() if inverted else fw()
+
             elif event.key() == Qt.Key_S:
-                print("Backward")
-                bw()
+                print("Backward" if not inverted else "Backward (inverted→fw)")
+                fw() if inverted else bw()
+
             elif event.key() == Qt.Key_A:
                 print("Left")
                 left()
+
             elif event.key() == Qt.Key_D:
                 print("Right")
                 right()
+
+            # ── Servos ────────────────────────────────────────────────────────
             elif event.key() == Qt.Key_I:
                 self.servos["base"] = moveAngle(self.servos["base"], "positive", "base")
                 self.update_servo_labels()
                 print(f"Base: {self.servos['base']}")
+
             elif event.key() == Qt.Key_K:
                 self.servos["base"] = moveAngle(self.servos["base"], "negative", "base")
                 self.update_servo_labels()
                 print(f"Base: {self.servos['base']}")
+
             elif event.key() == Qt.Key_O:
                 self.servos["neck"] = moveAngle(self.servos["neck"], "positive", "neck")
                 self.update_servo_labels()
                 print(f"Neck: {self.servos['neck']}")
+
             elif event.key() == Qt.Key_L:
                 self.servos["neck"] = moveAngle(self.servos["neck"], "negative", "neck")
                 self.update_servo_labels()
                 print(f"Neck: {self.servos['neck']}")
+
             elif event.key() == Qt.Key_N:
                 self.servos["gripper"] = moveAngle(self.servos["gripper"], "positive", "gripper")
                 self.update_servo_labels()
                 print(f"Gripper: {self.servos['gripper']}")
+
             elif event.key() == Qt.Key_M:
                 self.servos["gripper"] = moveAngle(self.servos["gripper"], "negative", "gripper")
                 self.update_servo_labels()
                 print(f"Gripper: {self.servos['gripper']}")
+
             elif event.key() == Qt.Key_U:
                 self.servos["tail"] = moveAngle(self.servos["tail"], "positive", "tail")
                 self.update_servo_labels()
                 print(f"Tail: {self.servos['tail']}")
+
             elif event.key() == Qt.Key_J:
                 self.servos["tail"] = moveAngle(self.servos["tail"], "negative", "tail")
                 self.update_servo_labels()
                 print(f"Tail: {self.servos['tail']}")
+
+            # ── Reset all servos to 0 ─────────────────────────────────────────
+            elif event.key() == Qt.Key_0:
+                self.servos["tail"] = setAngle("tail", 0)
+                self.servos["base"] = setAngle("base", 0)
+                self.servos["neck"] = setAngle("neck", 0)
+                self.servos["gripper"] = setAngle("gripper", 0)
+                self.update_servo_labels()
+                print("All servos reset to 0")
+
+            # ── Make servos go forward─────────────────────────────────────────
+            elif event.key() == Qt.Key_1:
+                self.servos["base"] = setAngle("base", 150)
+                self.servos["neck"] = setAngle("neck", 180)
+                self.update_servo_labels()
+                print("Servos set to forward")
+
+            # ── Tail goes all way down ─────────────────────────────────────────
+            elif event.key() == Qt.Key_3:
+                self.servos["tail"] = setAngle("tail", 180)
+                self.update_servo_labels()
+                print("Tail set all the way down")
+
+            # ── Tail goes all way up ─────────────────────────────────────────
+            elif event.key() == Qt.Key_4:
+                self.servos["tail"] = setAngle("tail", 0)
+                self.update_servo_labels()
+                print("Tail set all the way up")
+
         elif event.type() == QtCore.QEvent.KeyRelease:
-            if event.key() == Qt.Key_W:
+            if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):
                 stop()
-            if event.key() == Qt.Key_S:
-                stop()
-            if event.key() == Qt.Key_A:
-                stop()
-            if event.key() == Qt.Key_D:
-                stop()
+
         return super().eventFilter(source, event)
 
 

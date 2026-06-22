@@ -40,29 +40,29 @@ LR = Motor(LRF,LRB)
 # Making functions for commands
 # For example: Forward: RFF,LFF,RRF,LRF - HIGH
 
-def fw():
-    RF.forward()
-    RR.forward()
-    LF.forward()
-    LR.forward()
+def fw(pwmspeed):
+    RF.forward(speed=pwmspeed)
+    RR.forward(speed=pwmspeed)
+    LF.forward(speed=pwmspeed)
+    LR.forward(speed=pwmspeed)
 
-def bw():
-    RF.backward()
-    RR.backward()
-    LF.backward()
-    LR.backward()
+def bw(pwmspeed):
+    RF.backward(speed=pwmspeed)
+    RR.backward(speed=pwmspeed)
+    LF.backward(speed=pwmspeed)
+    LR.backward(speed=pwmspeed)
     
-def right():
-    RF.backward()
-    RR.backward()
-    LF.forward()
-    LR.forward()
+def right(pwmspeed):
+    RF.backward(speed=pwmspeed)
+    RR.backward(speed=pwmspeed)
+    LF.forward(speed=pwmspeed)
+    LR.forward(speed=pwmspeed)
 
-def left():
-    RF.forward()
-    RR.forward()
-    LF.backward()
-    LR.backward()
+def left(pwmspeed):
+    RF.forward(speed=pwmspeed)
+    RR.forward(speed=pwmspeed)
+    LF.backward(speed=pwmspeed)
+    LR.backward(speed=pwmspeed)
 
 def stop():
     RF.stop()

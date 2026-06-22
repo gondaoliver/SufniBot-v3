@@ -14,7 +14,6 @@ import pyzbar.pyzbar as pyzbar
 
 class CameraWidget(QWidget):
     """A widget that shows a live camera feed with zoom and pan support."""
-
     ZOOM_MIN = 1.0
     ZOOM_MAX = 8.0
     ZOOM_STEP = 0.25
@@ -446,10 +445,10 @@ class MainWindow(QMainWindow):
                     fw() if inverted else bw()
     
                 elif event.key() == Qt.Key_A:
-                    left()
+                    left(0.5)
     
                 elif event.key() == Qt.Key_D:
-                    right()
+                    right(0.5)
     
                 # ── Camera pan (arrow keys) ───────────────────────────────────────
                 elif event.key() == Qt.Key_Left:

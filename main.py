@@ -383,6 +383,7 @@ class MainWindow(QMainWindow):
     # ── Helpers ────────────────────────────────────────────────────────────────
 
     def _tab_style(self):
+        speed = 0
         return """
             QPushButton {
                 background-color: transparent;
@@ -439,10 +440,14 @@ class MainWindow(QMainWindow):
     
                 # ── Movement ──────────────────────────────────────────────────────
                 if event.key() == Qt.Key_W:
-                    bw() if inverted else fw()
+                    while speed < 1:
+                        speed += 0.2
+                    bw(speed) if inverted else fw(speed)
     
                 elif event.key() == Qt.Key_S:
-                    fw() if inverted else bw()
+                    while speed < 1:
+                        speed += 0.2
+                    fw(1) if inverted else bw(1)
     
                 elif event.key() == Qt.Key_A:
                     left(0.5)
@@ -528,6 +533,7 @@ class MainWindow(QMainWindow):
             elif event.type() == QtCore.QEvent.KeyRelease:
                 if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):
                     stop()
+                    speed = 0
     
             return super().eventFilter(source, event)
 

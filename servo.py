@@ -6,7 +6,7 @@ SERVO_CHANNELS = {
     "base": 0,
     "neck": 1,
     "gripper": 2,
-    "tail": 5,
+    "tail": 7,
 }
 
 def moveAngle(current_angle, direction, servo_name="base"):

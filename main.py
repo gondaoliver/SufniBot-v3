@@ -444,13 +444,13 @@ class MainWindow(QMainWindow):
             # ── Movement ──────────────────────────────────────────────────────
             if event.key() == Qt.Key_W:
                 while speed < self.preset_speed:
-                    speed += 0.2
+                    speed += 0.1
                 bw(speed) if inverted else fw(speed)
                 print(f"Forward: {speed}")
 
             elif event.key() == Qt.Key_S:
                 while speed < self.preset_speed:
-                    speed += 0.2
+                    speed += 0.1
                 fw(speed) if inverted else bw(speed)
                 print(f"Backward: {speed}")
 

@@ -438,6 +438,7 @@ class MainWindow(QMainWindow):
                 cam = self._active_cam()
                 speed = 0
                 preset_speed = 1
+                turning_speed = 0.8
     
                 # ── Movement ──────────────────────────────────────────────────────
                 if event.key() == Qt.Key_W:
@@ -453,10 +454,11 @@ class MainWindow(QMainWindow):
                     print(f"Backward: {speed}")
     
                 elif event.key() == Qt.Key_A:
-                    left(0.8)
+                    left(turning_speed)
+                    print(f"Left {turning_speed}")
     
                 elif event.key() == Qt.Key_D:
-                    right(0.8)
+                    right(f"Right {turning_speed}")
     
                 # ── Camera pan (arrow keys) ───────────────────────────────────────
                 elif event.key() == Qt.Key_Left:
@@ -532,9 +534,10 @@ class MainWindow(QMainWindow):
                 elif event.key() == Qt.Key_4:
                     self.servos["tail"] = setAngle("tail", 0)
                     self.update_servo_labels()
-                
+
                 elif event.key() == Qt.Key_8:
                     preset_speed = 1
+                
                 elif event.key() == Qt.Key_9:
                     preset_speed = 0.65
     

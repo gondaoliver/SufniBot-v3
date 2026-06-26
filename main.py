@@ -458,7 +458,8 @@ class MainWindow(QMainWindow):
                     print(f"Left {turning_speed}")
     
                 elif event.key() == Qt.Key_D:
-                    right(f"Right {turning_speed}")
+                    right(turning_speed)
+                    print(f"Right {turning_speed}")
     
                 # ── Camera pan (arrow keys) ───────────────────────────────────────
                 elif event.key() == Qt.Key_Left:

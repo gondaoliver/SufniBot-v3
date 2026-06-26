@@ -336,6 +336,9 @@ class MainWindow(QMainWindow):
         self.setStyleSheet("background-color: #0f0f1a; color: #e0e0e0;")
         self.installEventFilter(self)
 
+        self.preset_speed = 1.0
+        self.turning_speed = 0.8
+
         self.servos = {"base": 90, "neck": 90, "gripper": 90, "tail": 90}
         self.current_tab = 0
 
@@ -433,34 +436,31 @@ class MainWindow(QMainWindow):
         return self.camera_widgets[self.current_tab]
 
     def eventFilter(self, source, event):
-        speed = 0
-        preset_speed = 1
-        turning_speed = 0.8
         if event.type() == QtCore.QEvent.KeyPress:
             inverted = self.CAMERA_INVERTED.get(self.current_tab, False)
             cam = self._active_cam()
-            
+            speed = 0
 
             # ── Movement ──────────────────────────────────────────────────────
             if event.key() == Qt.Key_W:
-                while speed < preset_speed:
+                while speed < self.preset_speed:
                     speed += 0.2
                 bw(speed) if inverted else fw(speed)
                 print(f"Forward: {speed}")
 
             elif event.key() == Qt.Key_S:
-                while speed < preset_speed:
+                while speed < self.preset_speed:
                     speed += 0.2
                 fw(speed) if inverted else bw(speed)
                 print(f"Backward: {speed}")
 
             elif event.key() == Qt.Key_A:
-                left(turning_speed)
-                print(f"Left {turning_speed}")
+                left(self.turning_speed)
+                print(f"Left {self.turning_speed}")
 
             elif event.key() == Qt.Key_D:
-                right(turning_speed)
-                print(f"Right {turning_speed}")
+                right(self.turning_speed)
+                print(f"Right {self.turning_speed}")
 
             # ── Camera pan (arrow keys) ───────────────────────────────────────
             elif event.key() == Qt.Key_Left:
@@ -538,10 +538,10 @@ class MainWindow(QMainWindow):
                 self.update_servo_labels()
 
             elif event.key() == Qt.Key_8:
-                preset_speed = 1
+                self.preset_speed = 1
             
             elif event.key() == Qt.Key_9:
-                preset_speed = 0.65
+                self.preset_speed = 0.65
 
         elif event.type() == QtCore.QEvent.KeyRelease:
             if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):

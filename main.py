@@ -433,121 +433,122 @@ class MainWindow(QMainWindow):
         return self.camera_widgets[self.current_tab]
 
     def eventFilter(self, source, event):
-            if event.type() == QtCore.QEvent.KeyPress:
-                inverted = self.CAMERA_INVERTED.get(self.current_tab, False)
-                cam = self._active_cam()
-                speed = 0
-                preset_speed = 1
-                turning_speed = 0.8
-    
-                # ── Movement ──────────────────────────────────────────────────────
-                if event.key() == Qt.Key_W:
-                    while speed < preset_speed:
-                        speed += 0.2
-                    bw(speed) if inverted else fw(speed)
-                    print(f"Forward: {speed}")
-    
-                elif event.key() == Qt.Key_S:
-                    while speed < preset_speed:
-                        speed += 0.2
-                    fw(speed) if inverted else bw(speed)
-                    print(f"Backward: {speed}")
-    
-                elif event.key() == Qt.Key_A:
-                    left(turning_speed)
-                    print(f"Left {turning_speed}")
-    
-                elif event.key() == Qt.Key_D:
-                    right(turning_speed)
-                    print(f"Right {turning_speed}")
-    
-                # ── Camera pan (arrow keys) ───────────────────────────────────────
-                elif event.key() == Qt.Key_Left:
-                    cam.pan(-cam.PAN_STEP, 0)
-    
-                elif event.key() == Qt.Key_Right:
-                    cam.pan(+cam.PAN_STEP, 0)
-    
-                elif event.key() == Qt.Key_Up:
-                    cam.pan(0, -cam.PAN_STEP)
-    
-                elif event.key() == Qt.Key_Down:
-                    cam.pan(0, +cam.PAN_STEP)
-    
-                # ── Camera zoom (+ / −) ───────────────────────────────────────────
-                elif event.key() in (Qt.Key_Plus, Qt.Key_Equal):
-                    cam.zoom_in()
-    
-                elif event.key() == Qt.Key_Minus:
-                    cam.zoom_out()
-    
-                # ── Reset view ────────────────────────────────────────────────────
-                elif event.key() == Qt.Key_R:
-                    cam.reset_view()
-    
-                # ── Servos ────────────────────────────────────────────────────────
-                elif event.key() == Qt.Key_I:
-                    self.servos["base"] = moveAngle(self.servos["base"], "positive", "base")
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_K:
-                    self.servos["base"] = moveAngle(self.servos["base"], "negative", "base")
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_O:
-                    self.servos["neck"] = moveAngle(self.servos["neck"], "positive", "neck")
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_L:
-                    self.servos["neck"] = moveAngle(self.servos["neck"], "negative", "neck")
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_N:
-                    self.servos["gripper"] = moveAngle(self.servos["gripper"], "positive", "gripper")
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_M:
-                    self.servos["gripper"] = moveAngle(self.servos["gripper"], "negative", "gripper")
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_U:
-                    self.servos["tail"] = moveAngle(self.servos["tail"], "positive", "tail")
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_J:
-                    self.servos["tail"] = moveAngle(self.servos["tail"], "negative", "tail")
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_0:
-                    for name in self.servos:
-                        self.servos[name] = setAngle(name, 0)
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_1:
-                    self.servos["base"] = setAngle("base", 150)
-                    self.servos["neck"] = setAngle("neck", 180)
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_3:
-                    self.servos["tail"] = setAngle("tail", 180)
-                    self.update_servo_labels()
-    
-                elif event.key() == Qt.Key_4:
-                    self.servos["tail"] = setAngle("tail", 0)
-                    self.update_servo_labels()
+        speed = 0
+        preset_speed = 1
+        turning_speed = 0.8
+        if event.type() == QtCore.QEvent.KeyPress:
+            inverted = self.CAMERA_INVERTED.get(self.current_tab, False)
+            cam = self._active_cam()
+            
 
-                elif event.key() == Qt.Key_8:
-                    preset_speed = 1
-                
-                elif event.key() == Qt.Key_9:
-                    preset_speed = 0.65
-    
-            elif event.type() == QtCore.QEvent.KeyRelease:
-                if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):
-                    stop()
-                    speed = 0
-    
-            return super().eventFilter(source, event)
+            # ── Movement ──────────────────────────────────────────────────────
+            if event.key() == Qt.Key_W:
+                while speed < preset_speed:
+                    speed += 0.2
+                bw(speed) if inverted else fw(speed)
+                print(f"Forward: {speed}")
+
+            elif event.key() == Qt.Key_S:
+                while speed < preset_speed:
+                    speed += 0.2
+                fw(speed) if inverted else bw(speed)
+                print(f"Backward: {speed}")
+
+            elif event.key() == Qt.Key_A:
+                left(turning_speed)
+                print(f"Left {turning_speed}")
+
+            elif event.key() == Qt.Key_D:
+                right(turning_speed)
+                print(f"Right {turning_speed}")
+
+            # ── Camera pan (arrow keys) ───────────────────────────────────────
+            elif event.key() == Qt.Key_Left:
+                cam.pan(-cam.PAN_STEP, 0)
+
+            elif event.key() == Qt.Key_Right:
+                cam.pan(+cam.PAN_STEP, 0)
+
+            elif event.key() == Qt.Key_Up:
+                cam.pan(0, -cam.PAN_STEP)
+
+            elif event.key() == Qt.Key_Down:
+                cam.pan(0, +cam.PAN_STEP)
+
+            # ── Camera zoom (+ / −) ───────────────────────────────────────────
+            elif event.key() in (Qt.Key_Plus, Qt.Key_Equal):
+                cam.zoom_in()
+
+            elif event.key() == Qt.Key_Minus:
+                cam.zoom_out()
+
+            # ── Reset view ────────────────────────────────────────────────────
+            elif event.key() == Qt.Key_R:
+                cam.reset_view()
+
+            # ── Servos ────────────────────────────────────────────────────────
+            elif event.key() == Qt.Key_I:
+                self.servos["base"] = moveAngle(self.servos["base"], "positive", "base")
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_K:
+                self.servos["base"] = moveAngle(self.servos["base"], "negative", "base")
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_O:
+                self.servos["neck"] = moveAngle(self.servos["neck"], "positive", "neck")
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_L:
+                self.servos["neck"] = moveAngle(self.servos["neck"], "negative", "neck")
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_N:
+                self.servos["gripper"] = moveAngle(self.servos["gripper"], "positive", "gripper")
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_M:
+                self.servos["gripper"] = moveAngle(self.servos["gripper"], "negative", "gripper")
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_U:
+                self.servos["tail"] = moveAngle(self.servos["tail"], "positive", "tail")
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_J:
+                self.servos["tail"] = moveAngle(self.servos["tail"], "negative", "tail")
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_0:
+                for name in self.servos:
+                    self.servos[name] = setAngle(name, 0)
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_1:
+                self.servos["base"] = setAngle("base", 150)
+                self.servos["neck"] = setAngle("neck", 180)
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_3:
+                self.servos["tail"] = setAngle("tail", 180)
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_4:
+                self.servos["tail"] = setAngle("tail", 0)
+                self.update_servo_labels()
+
+            elif event.key() == Qt.Key_8:
+                preset_speed = 1
+            
+            elif event.key() == Qt.Key_9:
+                preset_speed = 0.65
+
+        elif event.type() == QtCore.QEvent.KeyRelease:
+            if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):
+                stop()
+                speed = 0
+
+        return super().eventFilter(source, event)
 
 
 def main():

@@ -383,7 +383,6 @@ class MainWindow(QMainWindow):
     # ── Helpers ────────────────────────────────────────────────────────────────
 
     def _tab_style(self):
-        speed = 0
         return """
             QPushButton {
                 background-color: transparent;
@@ -437,23 +436,27 @@ class MainWindow(QMainWindow):
             if event.type() == QtCore.QEvent.KeyPress:
                 inverted = self.CAMERA_INVERTED.get(self.current_tab, False)
                 cam = self._active_cam()
+                speed = 0
+                preset_speed = 1
     
                 # ── Movement ──────────────────────────────────────────────────────
                 if event.key() == Qt.Key_W:
-                    while speed < 1:
+                    while speed < preset_speed:
                         speed += 0.2
                     bw(speed) if inverted else fw(speed)
+                    print(f"Forward: {speed}")
     
                 elif event.key() == Qt.Key_S:
-                    while speed < 1:
+                    while speed < preset_speed:
                         speed += 0.2
-                    fw(1) if inverted else bw(1)
+                    fw(speed) if inverted else bw(speed)
+                    print(f"Backward: {speed}")
     
                 elif event.key() == Qt.Key_A:
-                    left(0.5)
+                    left(0.8)
     
                 elif event.key() == Qt.Key_D:
-                    right(0.5)
+                    right(0.8)
     
                 # ── Camera pan (arrow keys) ───────────────────────────────────────
                 elif event.key() == Qt.Key_Left:
@@ -529,6 +532,11 @@ class MainWindow(QMainWindow):
                 elif event.key() == Qt.Key_4:
                     self.servos["tail"] = setAngle("tail", 0)
                     self.update_servo_labels()
+                
+                elif event.key() == Qt.Key_8:
+                    preset_speed = 1
+                elif event.key() == Qt.Key_9:
+                    preset_speed = 0.65
     
             elif event.type() == QtCore.QEvent.KeyRelease:
                 if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):

@@ -1,9 +1,8 @@
-from gpiozero import Motor
-import time
+from platform_utils import IS_RPI
 
 """
 The pins should be like this:
-ALL THESE ARE GPIO x. 
+ALL THESE ARE GPIO x.
 For example: GPIO 14 - Right front forward
 
 Right front forward: 14
@@ -32,10 +31,30 @@ LRB = 22
 
 # Setting up outputs
 
-RF = Motor(RFF,RFB)
-RR = Motor(RRF,RRB)
-LF = Motor(LFF,LFB)
-LR = Motor(LRF,LRB)
+if IS_RPI:
+    from gpiozero import Motor
+
+    RF = Motor(RFF, RFB)
+    RR = Motor(RRF, RRB)
+    LF = Motor(LFF, LFB)
+    LR = Motor(LRF, LRB)
+else:
+    print("[movement] Not running on a Raspberry Pi - gpiozero disabled, using no-op motors.")
+
+    class _DummyMotor:
+        def forward(self, speed=1):
+            pass
+
+        def backward(self, speed=1):
+            pass
+
+        def stop(self):
+            pass
+
+    RF = _DummyMotor()
+    RR = _DummyMotor()
+    LF = _DummyMotor()
+    LR = _DummyMotor()
 
 # Making functions for commands
 # For example: Forward: RFF,LFF,RRF,LRF - HIGH
@@ -51,7 +70,7 @@ def bw(pwmspeed):
     RR.backward(speed=pwmspeed)
     LF.backward(speed=pwmspeed)
     LR.backward(speed=pwmspeed)
-    
+
 def right(pwmspeed):
     RF.backward(speed=pwmspeed)
     RR.backward(speed=pwmspeed)

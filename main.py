@@ -1,3 +1,4 @@
+import os
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -9,7 +10,17 @@ import PyQt5.QtCore as QtCore
 import cv2
 from movement import fw, bw, right, left, stop
 from servo import moveAngle, setAngle
-import pyzbar.pyzbar as pyzbar
+
+try:
+    if os.name == "nt":
+        # On Windows, ctypes won't search a DLL's own folder for its dependencies
+        # (e.g. libzbar-64.dll needs libiconv.dll), so register it explicitly.
+        import pyzbar
+        os.add_dll_directory(os.path.dirname(pyzbar.__file__))
+    import pyzbar.pyzbar as pyzbar
+except (ImportError, OSError):
+    print("[main] pyzbar/zbar unavailable - QR/barcode scanning disabled.")
+    pyzbar = None
 import time
 
 
@@ -29,6 +40,7 @@ class CameraWidget(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
         self.scanned_codes = set()
+        self.mirror_label = None  # optional secondary QLabel (e.g. combined "All Cameras" view)
 
         # ── Zoom / pan state ──────────────────────────────────────────────────
         self._zoom = 1.0        # current zoom level (1.0 = no zoom)
@@ -144,6 +156,12 @@ class CameraWidget(QWidget):
         self.servo_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
         hbox.addWidget(self.servo_label)
 
+        self.speed_label = QLabel("Speed: 100%")
+        self.speed_label.setAlignment(Qt.AlignCenter)
+        self.speed_label.setFont(QFont("Segoe UI", 12))
+        self.speed_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
+        hbox.addWidget(self.speed_label)
+
         layout.addLayout(hbox)
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -159,7 +177,7 @@ class CameraWidget(QWidget):
         if self.cap.isOpened():
             self._is_running = True
             self.timer.start(30)
-            self.status_label.setText("🟢  Active")
+            self.status_label.setText(f"🟢  Active")
             self.status_label.setStyleSheet("color: #4ade80; margin-top: 6px;")
         else:
             self.cap.release()
@@ -192,7 +210,7 @@ class CameraWidget(QWidget):
             return
 
         # QR / barcode decoding (on full frame before crop)
-        decoded_objects = pyzbar.decode(frame)
+        decoded_objects = pyzbar.decode(frame) if pyzbar is not None else []
         for obj in decoded_objects:
             data = obj.data.decode("utf-8")
             if data not in self.scanned_codes:
@@ -214,6 +232,16 @@ class CameraWidget(QWidget):
                 self.video_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
             )
         )
+        if self.mirror_label is not None:
+            self.mirror_label.setPixmap(
+                QPixmap.fromImage(qt_image).scaled(
+                    self.mirror_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+            )
+
+    def set_mirror_label(self, label):
+        """Also render every frame onto a secondary QLabel (combined view)."""
+        self.mirror_label = label
 
     def closeEvent(self, event):
         self.stop_camera()
@@ -322,18 +350,92 @@ class CameraWidget(QWidget):
             self._zoom_by(-self.ZOOM_STEP)
 
 
+class AllCamerasWidget(QWidget):
+    """Shows every camera's feed side by side, fed by CameraWidget mirror frames."""
+
+    def __init__(self, titles, servos, parent=None):
+        super().__init__(parent)
+        self.servos = servos
+        self.video_labels = []
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        title = QLabel("📷  All Cameras")
+        title.setAlignment(Qt.AlignCenter)
+        title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        title.setStyleSheet("color: #e0e0e0; margin-bottom: 8px;")
+        layout.addWidget(title)
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        for cam_title in titles:
+            col = QVBoxLayout()
+
+            cam_label = QLabel(cam_title)
+            cam_label.setAlignment(Qt.AlignCenter)
+            cam_label.setFont(QFont("Segoe UI", 11))
+            cam_label.setStyleSheet("color: #a0c4ff;")
+            col.addWidget(cam_label)
+
+            video_label = QLabel()
+            video_label.setAlignment(Qt.AlignCenter)
+            video_label.setMinimumSize(620, 460)
+            video_label.setText("Camera inactive")
+            video_label.setStyleSheet(
+                "background-color: #1a1a2e; border: 2px solid #4a4a8a;"
+                "border-radius: 8px; color: #888;"
+            )
+            col.addWidget(video_label)
+            self.video_labels.append(video_label)
+
+            row.addLayout(col)
+
+        layout.addLayout(row)
+
+        # ── Bottom info row (mirrors the per-camera page) ───────────────────────
+        hbox = QHBoxLayout()
+
+        self.control_label = QLabel(
+            "Forward W\nBackward S\nLeft A\nRight D"
+        )
+        self.control_label.setAlignment(Qt.AlignCenter)
+        self.control_label.setFont(QFont("Segoe UI", 12))
+        self.control_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
+        hbox.addWidget(self.control_label)
+
+        self.servo_label = QLabel(
+            f"Base: {self.servos['base']}\n"
+            f"Neck: {self.servos['neck']}\n"
+            f"Gripper: {self.servos['gripper']}\n"
+            f"Tail: {self.servos['tail']}"
+        )
+        self.servo_label.setAlignment(Qt.AlignCenter)
+        self.servo_label.setFont(QFont("Segoe UI", 12))
+        self.servo_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
+        hbox.addWidget(self.servo_label)
+
+        self.speed_label = QLabel("Speed: 100%")
+        self.speed_label.setAlignment(Qt.AlignCenter)
+        self.speed_label.setFont(QFont("Segoe UI", 12))
+        self.speed_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
+        hbox.addWidget(self.speed_label)
+
+        layout.addLayout(hbox)
+        layout.addStretch()
+
+
 class MainWindow(QMainWindow):
     CAMERA_INVERTED = {
         0: False,
         1: True,
-        2: False,
     }
-    CAMERA_INDICES = [0, 2, 3]
+    CAMERA_INDICES = [0, 2]
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SufniBot v3 | Gondaaa")
-        self.setMinimumSize(1000, 850)
+        self.setMinimumSize(1300, 850)
         self.setStyleSheet("background-color: #0f0f1a; color: #e0e0e0;")
         self.installEventFilter(self)
 
@@ -358,8 +460,9 @@ class MainWindow(QMainWindow):
         tab_layout.setSpacing(6)
 
         self.tab_buttons = []
-        for i in range(3):
-            btn = QPushButton(f"  Camera {i + 1}  ")
+        tab_titles = [f"  Camera {i + 1}  " for i in range(len(self.CAMERA_INDICES))] + ["  All Cameras  "]
+        for i, title in enumerate(tab_titles):
+            btn = QPushButton(title)
             btn.setCheckable(True)
             btn.setFixedHeight(38)
             btn.setFont(QFont("Segoe UI", 11))
@@ -382,7 +485,18 @@ class MainWindow(QMainWindow):
             self.camera_widgets.append(cam)
             self.stack.addWidget(cam)
 
+        # ── Combined "All Cameras" page ─────────────────────────────────────────
+        self.all_view = AllCamerasWidget(
+            titles=[f"Camera {i + 1}" for i in range(len(self.camera_widgets))],
+            servos=self.servos,
+        )
+        for cam, mirror_label in zip(self.camera_widgets, self.all_view.video_labels):
+            cam.set_mirror_label(mirror_label)
+        self.stack.addWidget(self.all_view)
+        self.ALL_CAMERAS_TAB = len(self.camera_widgets)
+
         self.switch_page(0)
+        self.update_speed_label()
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -415,14 +529,35 @@ class MainWindow(QMainWindow):
         )
         for cam in self.camera_widgets:
             cam.servo_label.setText(text)
+        self.all_view.servo_label.setText(text)
+
+    def update_speed_label(self):
+        text = f"Speed: {int(self.preset_speed * 100)}%"
+        for cam in self.camera_widgets:
+            cam.speed_label.setText(text)
+        self.all_view.speed_label.setText(text)
 
     def switch_page(self, index: int):
         current = self.stack.currentIndex()
+        target_is_all = index == self.ALL_CAMERAS_TAB
+
         if current != index:
-            self.camera_widgets[current].stop_camera()
+            if current == self.ALL_CAMERAS_TAB:
+                # Leaving the combined view: stop every camera not needed for the target.
+                for i, cam in enumerate(self.camera_widgets):
+                    if target_is_all or i != index:
+                        cam.stop_camera()
+            else:
+                if not target_is_all:
+                    self.camera_widgets[current].stop_camera()
+
         self.current_tab = index
         self.stack.setCurrentIndex(index)
-        self.camera_widgets[index].start_camera()
+        if target_is_all:
+            for cam in self.camera_widgets:
+                cam.start_camera()
+        else:
+            self.camera_widgets[index].start_camera()
         for i, btn in enumerate(self.tab_buttons):
             btn.setChecked(i == index)
 
@@ -433,7 +568,9 @@ class MainWindow(QMainWindow):
 
     # ── Key bindings ───────────────────────────────────────────────────────────
 
-    def _active_cam(self) -> CameraWidget:
+    def _active_cam(self):
+        if self.current_tab == self.ALL_CAMERAS_TAB:
+            return None
         return self.camera_widgets[self.current_tab]
 
     def eventFilter(self, source, event):
@@ -465,28 +602,28 @@ class MainWindow(QMainWindow):
                 right(self.turning_speed)
                 print(f"Right {self.turning_speed}")
 
-            # ── Camera pan (arrow keys) ───────────────────────────────────────
-            elif event.key() == Qt.Key_Left:
+            # ── Camera pan (arrow keys) ────────────────────────────────────────
+            elif event.key() == Qt.Key_Left and cam is not None:
                 cam.pan(-cam.PAN_STEP, 0)
 
-            elif event.key() == Qt.Key_Right:
+            elif event.key() == Qt.Key_Right and cam is not None:
                 cam.pan(+cam.PAN_STEP, 0)
 
-            elif event.key() == Qt.Key_Up:
+            elif event.key() == Qt.Key_Up and cam is not None:
                 cam.pan(0, -cam.PAN_STEP)
 
-            elif event.key() == Qt.Key_Down:
+            elif event.key() == Qt.Key_Down and cam is not None:
                 cam.pan(0, +cam.PAN_STEP)
 
             # ── Camera zoom (+ / −) ───────────────────────────────────────────
-            elif event.key() in (Qt.Key_Plus, Qt.Key_Equal):
+            elif event.key() in (Qt.Key_Plus, Qt.Key_Equal) and cam is not None:
                 cam.zoom_in()
 
-            elif event.key() == Qt.Key_Minus:
+            elif event.key() == Qt.Key_Minus and cam is not None:
                 cam.zoom_out()
 
             # ── Reset view ────────────────────────────────────────────────────
-            elif event.key() == Qt.Key_R:
+            elif event.key() == Qt.Key_R and cam is not None:
                 cam.reset_view()
 
             # ── Servos ────────────────────────────────────────────────────────
@@ -543,14 +680,17 @@ class MainWindow(QMainWindow):
             elif event.key() == Qt.Key_9:
                 self.preset_speed = 1
                 self.turning_speed = 1
-            
+                self.update_speed_label()
+
             elif event.key() == Qt.Key_8:
                 self.preset_speed = 0.65
                 self.turning_speed = 0.7
+                self.update_speed_label()
 
             elif event.key() == Qt.Key_7:
                 self.preset_speed = 0.3
                 self.turning_speed = 0.65
+                self.update_speed_label()
 
         elif event.type() == QtCore.QEvent.KeyRelease:
             if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):

@@ -1,13 +1,27 @@
-from adafruit_servokit import ServoKit
-
-kit = ServoKit(channels=16)
+from platform_utils import IS_RPI
 
 SERVO_CHANNELS = {
     "base": 0,
-    "neck": 1,
-    "gripper": 2,
+    "neck": 5,
+    "gripper": 8,
     "tail": 7,
 }
+
+if IS_RPI:
+    from adafruit_servokit import ServoKit
+
+    kit = ServoKit(channels=16)
+else:
+    print("[servo] Not running on a Raspberry Pi - adafruit_servokit disabled, using no-op servos.")
+
+    class _DummyServo:
+        angle = None
+
+    class _DummyKit:
+        def __init__(self):
+            self.servo = [_DummyServo() for _ in range(16)]
+
+    kit = _DummyKit()
 
 def moveAngle(current_angle, direction, servo_name="base"):
     if servo_name == "tail":

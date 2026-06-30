@@ -10,6 +10,7 @@ import cv2
 from movement import fw, bw, right, left, stop
 from servo import moveAngle, setAngle
 import pyzbar.pyzbar as pyzbar
+import time
 
 
 class CameraWidget(QWidget):
@@ -524,11 +525,11 @@ class MainWindow(QMainWindow):
             elif event.key() == Qt.Key_0:
                 for name in self.servos:
                     self.servos[name] = setAngle(name, 0)
-                self.update_servo_labels()
+                    self.update_servo_labels()
 
             elif event.key() == Qt.Key_1:
                 self.servos["base"] = setAngle("base", 150)
-                self.servos["neck"] = setAngle("neck", 180)
+                self.servos["neck"] = setAngle("neck", 160)
                 self.update_servo_labels()
 
             elif event.key() == Qt.Key_3:
@@ -539,11 +540,17 @@ class MainWindow(QMainWindow):
                 self.servos["tail"] = setAngle("tail", 0)
                 self.update_servo_labels()
 
-            elif event.key() == Qt.Key_8:
-                self.preset_speed = 1
-            
             elif event.key() == Qt.Key_9:
+                self.preset_speed = 1
+                self.turning_speed = 1
+            
+            elif event.key() == Qt.Key_8:
                 self.preset_speed = 0.65
+                self.turning_speed = 0.7
+
+            elif event.key() == Qt.Key_7:
+                self.preset_speed = 0.3
+                self.turning_speed = 0.65
 
         elif event.type() == QtCore.QEvent.KeyRelease:
             if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):

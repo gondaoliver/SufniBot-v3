@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from PyQt5.QtWidgets import (
@@ -5,7 +6,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout, QPushButton, QLabel, QStackedWidget, QFrame
 )
 from PyQt5.QtCore import QTimer, Qt, pyqtSlot, QPoint
-from PyQt5.QtGui import QImage, QPixmap, QFont, QCursor
+from PyQt5.QtGui import QImage, QPixmap, QFont, QCursor, QPainter, QColor, QPen, QBrush
 import PyQt5.QtCore as QtCore
 import cv2
 from movement import fw, bw, right, left, stop
@@ -350,6 +351,178 @@ class CameraWidget(QWidget):
             self._zoom_by(-self.ZOOM_STEP)
 
 
+CALIBRATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibration.json")
+
+
+class CalibrationOverlay(QWidget):
+    """Transparent overlay, sized to a single camera's video area, showing two
+    diagonal calibration stripes (left points up-right, right points up-left).
+
+    Each stripe is defined by two endpoints. Drag an endpoint to change the
+    stripe's angle/length, or drag the middle of the line to move it as a
+    whole. Positions are persisted to disk so calibration survives restarts.
+    A lock mode disables dragging without hiding the stripes.
+    """
+
+    STRIPE_WIDTH = 6
+    ENDPOINT_RADIUS = 5       # px, drawn handle size
+    ENDPOINT_GRAB = 14        # px, click tolerance around an endpoint
+    LINE_GRAB = 12            # px, click tolerance around the line itself
+
+    DEFAULTS = {
+        "left":  {"p1": [0.30, 0.60], "p2": [0.42, 0.42]},
+        "right": {"p1": [0.70, 0.60], "p2": [0.58, 0.42]},
+    }
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+        self.setStyleSheet("background: green;")
+
+        self.selected = "left"
+        self.locked = False
+        self.positions = {k: {"p1": list(v["p1"]), "p2": list(v["p2"])} for k, v in self.DEFAULTS.items()}
+        self._dragging = None       # None or ("left"/"right", "p1"/"p2"/"line")
+        self._drag_start_pos = None
+        self._drag_start_p1 = None
+        self._drag_start_p2 = None
+        self._load()
+
+    # ── Persistence ─────────────────────────────────────────────────────────
+    def _load(self):
+        try:
+            with open(CALIBRATION_FILE, "r") as f:
+                data = json.load(f)
+            for key in ("left", "right"):
+                if key in data and "p1" in data[key] and "p2" in data[key]:
+                    self.positions[key] = {"p1": list(data[key]["p1"]), "p2": list(data[key]["p2"])}
+            self.locked = bool(data.get("locked", False))
+        except (FileNotFoundError, json.JSONDecodeError, ValueError, KeyError, TypeError):
+            pass
+
+    def _save(self):
+        try:
+            data = {k: {"p1": v["p1"], "p2": v["p2"]} for k, v in self.positions.items()}
+            data["locked"] = self.locked
+            with open(CALIBRATION_FILE, "w") as f:
+                json.dump(data, f)
+        except OSError:
+            pass
+
+    def set_locked(self, locked: bool):
+        self.locked = locked
+        self._dragging = None
+        self.setCursor(Qt.ArrowCursor)
+        self._save()
+        self.update()
+
+    # ── Interaction (click-and-drag) ────────────────────────────────────────
+    @staticmethod
+    def _clamp01(v):
+        return min(1.0, max(0.0, v))
+
+    def _point_to_segment_dist(self, pos, a, b):
+        ax, ay = a
+        bx, by = b
+        dx, dy = bx - ax, by - ay
+        length_sq = dx * dx + dy * dy
+        if length_sq == 0:
+            t = 0.0
+        else:
+            t = max(0.0, min(1.0, ((pos.x() - ax) * dx + (pos.y() - ay) * dy) / length_sq))
+        px, py = ax + t * dx, ay + t * dy
+        return ((pos.x() - px) ** 2 + (pos.y() - py) ** 2) ** 0.5
+
+    def _hit_test(self, pos):
+        w, h = self.width(), self.height()
+        best = None  # (dist, key, mode)
+        for key, pts in self.positions.items():
+            p1_px = (pts["p1"][0] * w, pts["p1"][1] * h)
+            p2_px = (pts["p2"][0] * w, pts["p2"][1] * h)
+            for mode, pt_px in (("p1", p1_px), ("p2", p2_px)):
+                dist = ((pos.x() - pt_px[0]) ** 2 + (pos.y() - pt_px[1]) ** 2) ** 0.5
+                if dist <= self.ENDPOINT_GRAB and (best is None or dist < best[0]):
+                    best = (dist, key, mode)
+        if best is not None:
+            return best[1], best[2]
+
+        for key, pts in self.positions.items():
+            p1_px = (pts["p1"][0] * w, pts["p1"][1] * h)
+            p2_px = (pts["p2"][0] * w, pts["p2"][1] * h)
+            dist = self._point_to_segment_dist(pos, p1_px, p2_px)
+            if dist <= self.LINE_GRAB and (best is None or dist < best[0]):
+                best = (dist, key, "line")
+        if best is not None:
+            return best[1], best[2]
+        return None
+
+    def mousePressEvent(self, event):
+        if self.locked or event.button() != Qt.LeftButton:
+            return
+        hit = self._hit_test(event.pos())
+        if hit is None:
+            return
+        key, mode = hit
+        self.selected = key
+        self._dragging = (key, mode)
+        if mode == "line":
+            self._drag_start_pos = event.pos()
+            self._drag_start_p1 = list(self.positions[key]["p1"])
+            self._drag_start_p2 = list(self.positions[key]["p2"])
+        self.setCursor(Qt.ClosedHandCursor)
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        if self._dragging is None or not (event.buttons() & Qt.LeftButton):
+            return
+        if self.width() == 0 or self.height() == 0:
+            return
+        key, mode = self._dragging
+        if mode in ("p1", "p2"):
+            fx = self._clamp01(event.pos().x() / self.width())
+            fy = self._clamp01(event.pos().y() / self.height())
+            self.positions[key][mode] = [fx, fy]
+        else:
+            dfx = (event.pos().x() - self._drag_start_pos.x()) / self.width()
+            dfy = (event.pos().y() - self._drag_start_pos.y()) / self.height()
+            self.positions[key]["p1"] = [self._clamp01(self._drag_start_p1[0] + dfx),
+                                          self._clamp01(self._drag_start_p1[1] + dfy)]
+            self.positions[key]["p2"] = [self._clamp01(self._drag_start_p2[0] + dfx),
+                                          self._clamp01(self._drag_start_p2[1] + dfy)]
+        self._save()
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self._dragging is not None:
+            self._dragging = None
+            self.setCursor(Qt.ArrowCursor)
+
+    # ── Drawing ─────────────────────────────────────────────────────────────
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        for key, pts in self.positions.items():
+            p1 = QPoint(int(pts["p1"][0] * self.width()), int(pts["p1"][1] * self.height()))
+            p2 = QPoint(int(pts["p2"][0] * self.width()), int(pts["p2"][1] * self.height()))
+
+            is_selected = key == self.selected
+            if self.locked:
+                color = QColor("#4ade80")
+            else:
+                color = QColor("#ffeb3b") if is_selected else QColor("#ff3b3b")
+            width = self.STRIPE_WIDTH + 2 if (is_selected and not self.locked) else self.STRIPE_WIDTH
+            painter.setPen(QPen(color, width, Qt.SolidLine, Qt.RoundCap))
+            painter.drawLine(p1, p2)
+
+            if not self.locked:
+                painter.setPen(QPen(QColor("#ffffff"), 2))
+                painter.setBrush(QBrush(color))
+                for pt in (p1, p2):
+                    painter.drawEllipse(pt, self.ENDPOINT_RADIUS, self.ENDPOINT_RADIUS)
+
+
 class AllCamerasWidget(QWidget):
     """Shows every camera's feed side by side, fed by CameraWidget mirror frames."""
 
@@ -446,6 +619,7 @@ class MainWindow(QMainWindow):
         self.current_tab = 0
 
         central = QWidget()
+        self.central_widget = central
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -472,6 +646,23 @@ class MainWindow(QMainWindow):
             self.tab_buttons.append(btn)
 
         tab_layout.addStretch()
+
+        self.calib_btn = QPushButton("🎯 Parking guides  ")
+        self.calib_btn.setCheckable(True)
+        self.calib_btn.setFixedHeight(38)
+        self.calib_btn.setFont(QFont("Segoe UI", 11))
+        self.calib_btn.setStyleSheet(self._tab_style())
+        self.calib_btn.clicked.connect(self.toggle_calibration_overlay)
+        tab_layout.addWidget(self.calib_btn)
+
+        self.lock_btn = QPushButton("🔒  Lock Parking Guides  ")
+        self.lock_btn.setCheckable(True)
+        self.lock_btn.setFixedHeight(38)
+        self.lock_btn.setFont(QFont("Segoe UI", 11))
+        self.lock_btn.setStyleSheet(self._tab_style())
+        self.lock_btn.clicked.connect(self.toggle_calibration_lock)
+        tab_layout.addWidget(self.lock_btn)
+
         main_layout.addWidget(tab_bar)
 
         # ── Stacked pages ──────────────────────────────────────────────────────
@@ -495,8 +686,48 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.all_view)
         self.ALL_CAMERAS_TAB = len(self.camera_widgets)
 
+        # ── Calibration overlay (over the active camera's video only, hidden by default) ──
+        self.calibration_overlay = CalibrationOverlay(self.central_widget)
+        self.calibration_overlay.hide()
+        self.lock_btn.setChecked(self.calibration_overlay.locked)
+
         self.switch_page(0)
         self.update_speed_label()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._sync_calibration_overlay()
+
+    def _sync_calibration_overlay(self):
+        """Keep the overlay's geometry pinned to the active camera's video area only."""
+        if not hasattr(self, "calibration_overlay"):
+            return
+        on_camera_tab = self.current_tab != self.ALL_CAMERAS_TAB
+        self.calib_btn.setEnabled(on_camera_tab)
+        if not on_camera_tab:
+            self.calibration_overlay.hide()
+            self.calib_btn.setChecked(False)
+            return
+        cam = self.camera_widgets[self.current_tab]
+        top_left = cam.video_label.mapTo(self.central_widget, QPoint(0, 0))
+        self.calibration_overlay.setGeometry(
+            top_left.x(), top_left.y(), cam.video_label.width(), cam.video_label.height()
+        )
+
+    def toggle_calibration_overlay(self):
+        if self.current_tab == self.ALL_CAMERAS_TAB:
+            return
+        if self.calibration_overlay.isVisible():
+            self.calibration_overlay.hide()
+            self.calib_btn.setChecked(False)
+        else:
+            self._sync_calibration_overlay()
+            self.calibration_overlay.raise_()
+            self.calibration_overlay.show()
+            self.calib_btn.setChecked(True)
+
+    def toggle_calibration_lock(self):
+        self.calibration_overlay.set_locked(self.lock_btn.isChecked())
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -560,6 +791,7 @@ class MainWindow(QMainWindow):
             self.camera_widgets[index].start_camera()
         for i, btn in enumerate(self.tab_buttons):
             btn.setChecked(i == index)
+        self._sync_calibration_overlay()
 
     def closeEvent(self, event):
         for cam in self.camera_widgets:
@@ -601,6 +833,10 @@ class MainWindow(QMainWindow):
             elif event.key() == Qt.Key_D:
                 right(self.turning_speed)
                 print(f"Right {self.turning_speed}")
+
+            # ── Calibration overlay toggle ──────────────────────────────────────
+            elif event.key() == Qt.Key_C:
+                self.toggle_calibration_overlay()
 
             # ── Camera pan (arrow keys) ────────────────────────────────────────
             elif event.key() == Qt.Key_Left and cam is not None:

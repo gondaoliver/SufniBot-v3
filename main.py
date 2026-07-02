@@ -933,8 +933,10 @@ class MainWindow(QMainWindow):
             elif event.key() == Qt.Key_Y:
                 if self.autohold == False:
                     self.autohold = True
+                    autohold()
                 else:
                     self.autohold = False
+                    stop()
                 self.update_info_label()
 
         elif event.type() == QtCore.QEvent.KeyRelease:

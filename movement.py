@@ -88,3 +88,9 @@ def stop():
     RR.stop()
     LF.stop()
     LR.stop()
+
+def autohold():
+    RF.forward(speed=0.1)
+    RR.forward(speed=0.1)
+    LF.forward(speed=0.1)
+    LR.forward(speed=0.1)

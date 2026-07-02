@@ -9,7 +9,7 @@ from PyQt5.QtCore import QTimer, Qt, pyqtSlot, QPoint
 from PyQt5.QtGui import QImage, QPixmap, QFont, QCursor, QPainter, QColor, QPen, QBrush
 import PyQt5.QtCore as QtCore
 import cv2
-from movement import fw, bw, right, left, stop
+from movement import fw, bw, right, left, stop, autohold
 from servo import moveAngle, setAngle
 
 try:
@@ -157,11 +157,11 @@ class CameraWidget(QWidget):
         self.servo_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
         hbox.addWidget(self.servo_label)
 
-        self.speed_label = QLabel("Speed: 100%")
-        self.speed_label.setAlignment(Qt.AlignCenter)
-        self.speed_label.setFont(QFont("Segoe UI", 12))
-        self.speed_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
-        hbox.addWidget(self.speed_label)
+        self.info_label = QLabel("Speed: 100%")
+        self.info_label.setAlignment(Qt.AlignCenter)
+        self.info_label.setFont(QFont("Segoe UI", 12))
+        self.info_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
+        hbox.addWidget(self.info_label)
 
         layout.addLayout(hbox)
 
@@ -588,11 +588,11 @@ class AllCamerasWidget(QWidget):
         self.servo_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
         hbox.addWidget(self.servo_label)
 
-        self.speed_label = QLabel("Speed: 100%")
-        self.speed_label.setAlignment(Qt.AlignCenter)
-        self.speed_label.setFont(QFont("Segoe UI", 12))
-        self.speed_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
-        hbox.addWidget(self.speed_label)
+        self.info_label = QLabel("Speed: 100%\nAuto hold: off")
+        self.info_label.setAlignment(Qt.AlignCenter)
+        self.info_label.setFont(QFont("Segoe UI", 12))
+        self.info_label.setStyleSheet("margin-top: 16px; margin-bottom: 16px;")
+        hbox.addWidget(self.info_label)
 
         layout.addLayout(hbox)
         layout.addStretch()
@@ -602,6 +602,7 @@ class MainWindow(QMainWindow):
     CAMERA_INVERTED = {
         0: False,
         1: True,
+        2: True
     }
     CAMERA_INDICES = [0, 2]
 
@@ -614,6 +615,7 @@ class MainWindow(QMainWindow):
 
         self.preset_speed = 1.0
         self.turning_speed = 0.8
+        self.autohold = False
 
         self.servos = {"base": 90, "neck": 90, "gripper": 90, "tail": 90}
         self.current_tab = 0
@@ -692,7 +694,7 @@ class MainWindow(QMainWindow):
         self.lock_btn.setChecked(self.calibration_overlay.locked)
 
         self.switch_page(0)
-        self.update_speed_label()
+        self.update_info_label()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -762,11 +764,11 @@ class MainWindow(QMainWindow):
             cam.servo_label.setText(text)
         self.all_view.servo_label.setText(text)
 
-    def update_speed_label(self):
-        text = f"Speed: {int(self.preset_speed * 100)}%"
+    def update_info_label(self):
+        text = f"Speed: {int(self.preset_speed * 100)}%\n{"Auto hold: on" if self.autohold else "Auto hold: off"}"
         for cam in self.camera_widgets:
-            cam.speed_label.setText(text)
-        self.all_view.speed_label.setText(text)
+            cam.info_label.setText(text)
+        self.all_view.info_label.setText(text)
 
     def switch_page(self, index: int):
         current = self.stack.currentIndex()
@@ -916,22 +918,32 @@ class MainWindow(QMainWindow):
             elif event.key() == Qt.Key_9:
                 self.preset_speed = 1
                 self.turning_speed = 1
-                self.update_speed_label()
+                self.update_info_label()
 
             elif event.key() == Qt.Key_8:
                 self.preset_speed = 0.65
                 self.turning_speed = 0.7
-                self.update_speed_label()
+                self.update_info_label()
 
             elif event.key() == Qt.Key_7:
                 self.preset_speed = 0.3
                 self.turning_speed = 0.65
-                self.update_speed_label()
+                self.update_info_label()
+
+            elif event.key() == Qt.Key_Y:
+                if self.autohold == False:
+                    self.autohold = True
+                else:
+                    self.autohold = False
+                self.update_info_label()
 
         elif event.type() == QtCore.QEvent.KeyRelease:
             if event.key() in (Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D):
-                stop()
-                speed = 0
+                if self.autohold == False: 
+                    stop()
+                    speed = 0
+                else:
+                    autohold()
 
         return super().eventFilter(source, event)
 
